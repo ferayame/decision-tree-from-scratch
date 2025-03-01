@@ -1,94 +1,86 @@
 import numpy as np
-
-def _best_split(self, X, y):
-    best_gini = float("inf")
-    best_feature = None
-    best_threshold = None
-
-    for feature in range(X.shape[1]):
-        thresholds = np.unique(X[:, feature])  # Get unique values as thresholds
-        for threshold in thresholds:
-            left_indices = X[:, feature] < threshold
-            right_indices = X[:, feature] >= threshold
-
-            if len(left_indices) == 0 or len(right_indices) == 0:
-                continue
-
-            gini = self._gini_impurity(y[left_indices], y[right_indices])
-            if gini < best_gini:
-                best_gini = gini
-                best_feature = feature
-                best_threshold = threshold
-
-    return best_feature, best_threshold
-
-
-
-
-
-import numpy as np
-
-def residual_information(subset_distributions):
-    """
-    Calculate the residual information after a split using entropy.
-
-    Parameters:
-    subset_distributions (list of dicts): A list where each element is a dictionary
-                                          representing the class distribution in a subset.
-                                          Example: [{'A': 5, 'B': 2}, {'A': 1, 'B': 2}]
-
-    Returns:
-    float: The residual information.
-    """
-    total_samples = sum(sum(subset.values()) for subset in subset_distributions)
-    residual_info = 0.0
-
-    for subset in subset_distributions:
-        subset_size = sum(subset.values())
-        p_v = subset_size / total_samples  # Probability of the subset
-        subset_entropy = 0.0
-
-        for count in subset.values():
-            p_c_given_v = count / subset_size  # Probability of class given the subset
-            if p_c_given_v > 0:
-                subset_entropy -= p_c_given_v * np.log2(p_c_given_v)
-
-        residual_info += p_v * subset_entropy
-
-    return residual_info
-
+from collections import Counter
 
 
 class decisionTree:
     # PM : Purity Measure; entropy by default
-    
-    def __init__(self, PM = 'entropy'):
+    def __init__(self, PM="entropy"):
         self.PM = PM
         self.tree = None
 
+    def _probability(self, y):
+        _, counts = Counter(y).keys(), Counter(y).values()
+        return counts / len(y)
 
-    # Purity Measures
-    def _entropy(self, probabilities):
-        entropy_value = 0
-        for p in probabilities:
-            if p != 0:  # Skip if p is 0
-                entropy_value -= p * np.log2(p)
-        return entropy_value
+    def _purity(self, y):
+        if self.PM == "entropy":
+            return self._entropy(y)
+        elif self.PM == "gini":
+            return self._gini(y)
+        else:
+            raise ValueError(
+                f"Invalid purity measure: {self.PM}. Use 'entropy' or 'gini'."
+            )
+
+    def _entropy(self, y):
+        probabilities = self._probability(y)
+        return -np.sum([p * np.log2(p) for p in probabilities if p > 0])
+
+    def _gini(self, y):
+        probabilities = self._probability(y)
+        return 1 - np.sum([p**2 for p in probabilities if p > 0])
+
+    def _gain(self, X_column, y, threshold):
+        parent_entropy = self._purity(y)
+        left_indices = X_column < threshold
+        right_indices = X_column >= threshold
+        n, n_left, n_right = len(y), sum(left_indices), sum(right_indices)
+
+        if n_left == 0 or n_right == 0:
+            return 0
+
+        child_entropy = (n_left / n) * self._purity(y[left_indices]) + (
+            n_right / n
+        ) * self._purity(y[right_indices])
+        return parent_entropy - child_entropy
+
+    def _best_split(self, X, y):
+        best_gain = -1
+        best_feature, best_threshold = None, None
+
+        for feature_index in range(X.shape[1]):
+            thresholds = np.unique(X[:, feature_index])
+            for threshold in thresholds:
+                gain = self._gain(X[:, feature_index], y, threshold)
+                if gain > best_gain:
+                    best_gain = gain
+                    best_feature = feature_index
+                    best_threshold = threshold
+
+        return best_feature, best_threshold
     
-    def _gini(self, probabilities):
-        gini_value = 0
-        for p in probabilities:
-            if p != 0:
-                gini_value += p ** 2 
-                
-        return 1 - gini_value
-        
-    
-    def _resInformation(self, probabilities, conditional_probabilities):
-        pass
-    
-    def _gain(self, attribute):
-        return self._entropy()
-    
-    def _split(self, feature):
-        pass
+    def _build_tree(self, X, y, depth=0):
+        n_labels = len(np.unique(y))
+
+        if depth == self.max_depth or n_labels == 1:
+            leaf_value = self._most_common_label(y)
+            return {'leaf': True, 'value': leaf_value}
+
+        feature_index, threshold = self._best_split(X, y)
+
+        if feature_index is None:
+            return {'leaf': True, 'value': self._most_common_label(y)}
+
+        left_indices = X[:, feature_index] < threshold
+        right_indices = X[:, feature_index] >= threshold
+
+        left_subtree = self._build_tree(X[left_indices], y[left_indices], depth + 1)
+        right_subtree = self._build_tree(X[right_indices], y[right_indices], depth + 1)
+
+        return {
+            'leaf': False,
+            'feature_index': feature_index,
+            'threshold': threshold,
+            'left': left_subtree,
+            'right': right_subtree
+        }
