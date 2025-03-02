@@ -1,0 +1,15 @@
+Age,Salaire,Etudiant,A achete
+petit,haut,non,non
+petit,haut,non,non
+moyen,haut,non,oui
+senior,moyen,non,oui
+senior,bas,oui,oui
+senior,bas,oui,non
+moyen,bas,oui,oui
+petit,moyen,non,non
+petit,bas,oui,oui
+senior,moyen,oui,oui
+petit,moyen,oui,oui
+moyen,moyen,non,oui
+moyen,haut,oui,oui
+senior,moyen,non,non
